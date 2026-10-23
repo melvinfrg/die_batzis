@@ -42,6 +42,15 @@ if (!isDemo) {
     },
     async deletePhoto(path) { ok(await sb.storage.from('photos').remove([path])); },
     async fetchIcal() { return ok(await sb.functions.invoke('ical', { body: {} })); },
+    async fetchOffers(items, plz) {
+      const { data, error } = await sb.functions.invoke('offers', { body: { items, plz } });
+      if (error) {
+        let msg = error.message;
+        try { const j = await error.context.json(); if (j?.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
+      return data;
+    },
     subscribe(cb) {
       sb.channel('batzi-live')
         .on('postgres_changes', { event: '*', schema: 'public' }, (p) => cb(p.table))
@@ -99,6 +108,16 @@ if (!isDemo) {
     },
     async photoUrls(paths) { const o = {}; paths.forEach((p) => (o[p] = p.startsWith('http') ? p : store.get('batzi-demo-photo-' + p))); return o; },
     async deletePhoto(path) { try { localStorage.removeItem('batzi-demo-photo-' + path); } catch {} },
+    async fetchOffers(items, plz) {
+      await new Promise((r) => setTimeout(r, 1200));
+      const st = ['ALDI', 'LIDL', 'PENNY', 'NETTO', 'REWE', 'EDEKA', 'Kaufland'];
+      const value = { at: new Date().toISOString(), plz, note: 'Demo – das sind Beispielwerte, keine echten Angebote.',
+        recommendation: { store: 'LIDL', reason: 'Bei LIDL sind diese Woche die meisten eurer Artikel im Angebot.' },
+        items: items.map((name, i) => (i % 3 === 2 ? { name, best: null, others: [] } : { name, best: { store: st[i % 7], product: name + ' (Eigenmarke)', price: (0.79 + i * 0.4).toFixed(2).replace('.', ',') + ' €', unit: '1 Stk.', valid: 'bis Sa.', url: 'https://www.marktguru.de' }, others: [{ store: st[(i + 2) % 7], price: (1.19 + i * 0.4).toFixed(2).replace('.', ',') + ' €', product: name }] })),
+        sources: [{ url: 'https://www.marktguru.de', title: 'marktguru' }] };
+      const rows = read('app_settings').filter((r) => r.id !== 'offers_last'); rows.push({ id: 'offers_last', value }); write('app_settings', rows);
+      return value;
+    },
     async fetchIcal() {
       const feeds = (read('app_settings').find((r) => r.id === 'ical_feeds')?.value?.feeds) || [];
       const T = todayStr();

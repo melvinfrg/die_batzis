@@ -714,3 +714,21 @@ dialog.wide { width: min(860px, calc(100vw - 24px)); }
 details.help { background: var(--card2); border-radius: 14px; padding: 10px 14px; }
 details.help summary { font-weight: 800; cursor: pointer; }
 details.help ol { margin: 10px 0 6px; padding-left: 20px; display: grid; gap: 6px; }
+
+.ai-row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.ai-row input { flex: 0 1 130px; }
+.ai-row .btn { flex: 1 1 240px; }
+.spin { display: inline-block; animation: bob 1s ease-in-out infinite; }
+.bad-notice { background: var(--rose-s); }
+.ai-reco { background: var(--lemon-s); border-radius: 14px; padding: 10px 14px; margin: 4px 0 10px; }
+.ai-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.ai-list li { display: grid; grid-template-columns: minmax(110px, 1fr) 2.5fr; gap: 4px 12px; padding: 9px 2px; border-bottom: 1.5px dashed var(--line); align-items: baseline; }
+.ai-list li:last-child { border-bottom: 0; }
+.ai-name { font-weight: 800; }
+.ai-best { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.ai-best a { color: var(--coral-d); font-weight: 700; }
+.ai-others { grid-column: 2; color: var(--muted); }
+@media (max-width: 520px) { .ai-list li { grid-template-columns: 1fr; } .ai-others { grid-column: 1; } }
+.store-pill { background: var(--ink); color: var(--bg); font-weight: 800; font-size: .74rem; padding: 2px 9px; border-radius: 99px; }
+.src-list { margin: 8px 0 0; padding-left: 18px; font-size: .88rem; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.src-list a { color: var(--coral-d); }
