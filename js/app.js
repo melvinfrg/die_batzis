@@ -219,11 +219,42 @@ function route() {
   renderView();
   if (prev.name !== cur.name || prev.param !== cur.param) window.scrollTo(0, 0);
 }
+let lastViewKey = '';
 function renderView() {
   const root = document.getElementById('view'); if (!root) return;
+  const key = cur.name + '/' + (cur.param || '');
+  const sameView = key === lastViewKey; lastViewKey = key;
+  const scrolls = sameView ? [...root.querySelectorAll('.tabs')].map((t) => t.scrollLeft) : [];
   root.innerHTML = ROUTES[cur.name].view.render(cur.param);
   document.title = `${ROUTES[cur.name].label} · Die Batzi's`;
+  enhanceTabs(root, scrolls);
 }
+
+// Reiter-Leisten: Pfeile links/rechts, wenn sie breiter als der Bildschirm sind
+function enhanceTabs(root, scrolls) {
+  root.querySelectorAll('.tabs').forEach((tabs, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'tabs-wrap';
+    tabs.replaceWith(wrap);
+    const left = Object.assign(document.createElement('button'), { type: 'button', className: 'tabs-arrow left', innerHTML: '‹', ariaLabel: 'Nach links' });
+    const right = Object.assign(document.createElement('button'), { type: 'button', className: 'tabs-arrow right', innerHTML: '›', ariaLabel: 'Nach rechts' });
+    wrap.append(left, tabs, right);
+    const update = () => {
+      const max = tabs.scrollWidth - tabs.clientWidth;
+      left.hidden = tabs.scrollLeft <= 2;
+      right.hidden = tabs.scrollLeft >= max - 2;
+      wrap.classList.toggle('fade-l', !left.hidden); wrap.classList.toggle('fade-r', !right.hidden);
+    };
+    const step = () => Math.max(160, tabs.clientWidth * 0.7);
+    left.onclick = () => tabs.scrollBy({ left: -step(), behavior: 'smooth' });
+    right.onclick = () => tabs.scrollBy({ left: step(), behavior: 'smooth' });
+    tabs.addEventListener('scroll', update, { passive: true });
+    if (scrolls[i] != null) tabs.scrollLeft = scrolls[i];
+    else { const on = tabs.querySelector('.on'); if (on && on.offsetLeft + on.offsetWidth > tabs.clientWidth) tabs.scrollLeft = on.offsetLeft - 40; }
+    requestAnimationFrame(update);
+  });
+}
+window.addEventListener('resize', () => document.querySelectorAll('.tabs').forEach((t) => t.dispatchEvent(new Event('scroll'))));
 
 function rerender() {
   const root = document.getElementById('view'); if (!root) return;

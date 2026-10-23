@@ -28,7 +28,9 @@ export function guessCat(name) {
   return 'Sonstiges';
 }
 
-export const STORES = ['Aldi', 'Lidl', 'Rewe', 'Edeka', 'Kaufland', 'Penny', 'Netto', 'Norma', 'dm', 'Rossmann', 'Müller', 'Bäcker', 'Wochenmarkt', 'Metzger', 'Drogerie', 'Baumarkt', 'Online'];
+export const STORES = ['ALDI', 'LIDL', 'PENNY', 'NETTO', 'REWE', 'EDEKA', 'Kaufland'];
+export const normStore = (s) => (s ? STORES.find((x) => x.toLowerCase() === String(s).trim().toLowerCase()) || null : null);
+const storeOptions = (sel, autoLabel = '🏪 Laden (auto)') => `<option value="">${autoLabel}</option>${STORES.map((x) => `<option value="${x}" ${normStore(sel) === x ? 'selected' : ''}>${x}</option>`).join('')}`;
 const V = { group: store.get('batzi-shop-group', 'cat'), store: 'all' };
 
 // Gemeinsames Gedächtnis: welche Kategorie / welcher Laden für welchen Artikel
@@ -42,7 +44,7 @@ function remember(name, cat, shop) {
   const keep = Object.entries(items).sort((a, b) => String(b[1].last).localeCompare(String(a[1].last))).slice(0, 300);
   setSetting('shop_memory', { items: Object.fromEntries(keep) }).catch(() => {});
 }
-export const suggestStore = (name) => memory()[name.toLowerCase()]?.store || null;
+export const suggestStore = (name) => normStore(memory()[name.toLowerCase()]?.store);
 export const knownStores = () => [...new Set([...S.shopping_items.map((i) => i.store), ...Object.values(memory()).map((m) => m.store), ...STORES].filter(Boolean))];
 
 export const openItems = () => S.shopping_items.filter((i) => !i.checked);
@@ -57,7 +59,8 @@ export function render() {
   const mem = Object.values(memory());
   const hist = mem.length ? mem.sort((a, b) => (b.n || 0) - (a.n || 0) || String(b.last).localeCompare(String(a.last))).map((m) => m.name) : store.get('batzi-shop-history', []);
   const suggestions = hist.filter((h) => !onList.has(h.toLowerCase())).slice(0, 12);
-  const stores = [...new Set(allOpen.map((i) => i.store).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  const used = new Set(allOpen.map((i) => i.store).filter(Boolean));
+  const stores = [...STORES.filter((x) => used.has(x)), ...[...used].filter((x) => !STORES.includes(x))];
   const noStore = allOpen.some((i) => !i.store);
 
   let grouped;
@@ -83,13 +86,12 @@ export function render() {
   <form class="quick card shop-quick" data-submit="shop-add" autocomplete="off">
     <input id="shop-name" name="name" placeholder="Was brauchen wir? (mehrere mit Komma)" list="shop-hist" aria-label="Artikel">
     <input id="shop-qty" name="quantity" placeholder="Menge" class="qty" aria-label="Menge">
-    <input id="shop-store" name="store" placeholder="🏪 Laden" list="shop-stores" class="store-in" aria-label="Laden">
+    <select id="shop-store" name="store" class="store-in" aria-label="Laden">${storeOptions('')}</select>
     <select name="category" aria-label="Kategorie"><option value="">✨ Automatisch</option>${CATS.map(([c, e]) => `<option value="${esc(c)}">${e} ${esc(c)}</option>`).join('')}</select>
     <button class="btn primary" type="submit">＋</button>
     <datalist id="shop-hist">${hist.slice(0, 200).map((h) => `<option value="${esc(h)}">`).join('')}</datalist>
-    <datalist id="shop-stores">${knownStores().map((h) => `<option value="${esc(h)}">`).join('')}</datalist>
   </form>
-  <p class="hint">Laden leer lassen = wir schlagen den Laden vor, in dem ihr den Artikel zuletzt gekauft habt.</p>
+  <p class="hint">„Laden (auto)“ = der Laden, in dem ihr den Artikel zuletzt gekauft habt.</p>
 
   ${suggestions.length ? `<div class="suggest"><span class="hint">Schnell nochmal:</span>${suggestions.map((s) => `<button class="chip" data-action="shop-suggest" data-name="${esc(s)}">＋ ${esc(s)}</button>`).join('')}</div>` : ''}
 
@@ -139,7 +141,7 @@ export async function addShopping(names, quantity = '', category = '', shop = ''
     const existing = openItems().find((i) => i.name.toLowerCase() === name.toLowerCase());
     if (existing) { if (list.length < 4) toast(`„${name}“ steht schon drauf`); continue; }
     const cat = category || guessCat(name);
-    const st = shop || suggestStore(name);
+    const st = normStore(shop) || suggestStore(name);
     remember(name, cat, shop || undefined);
     await add('shopping_items', { name, quantity: list.length === 1 ? quantity || null : null, category: cat, store: st || null, note, checked: false });
     added++;
@@ -151,7 +153,7 @@ export const actions = {
   'shop-add': async (form) => {
     const n = form.querySelector('[name=name]'), q = form.querySelector('[name=quantity]'), c = form.querySelector('[name=category]'), st = form.querySelector('[name=store]');
     const v = n.value; if (!v.trim()) return n.focus();
-    const qty = q.value, cat = c.value, shop = st ? st.value.trim() : '';
+    const qty = q.value, cat = c.value, shop = st ? st.value : '';
     n.value = ''; q.value = '';
     await addShopping(v, qty, cat, shop);
     document.getElementById('shop-name')?.focus();
@@ -174,8 +176,7 @@ export const actions = {
         <label class="field"><span>Artikel</span><input name="name" required value="${esc(i.name)}" autofocus></label>
         <div class="row2">
           <label class="field"><span>Menge</span><input name="quantity" value="${esc(i.quantity || '')}" placeholder="z. B. 2, 500 g"></label>
-          <label class="field"><span>Laden</span><input name="store" list="shop-stores-m" value="${esc(i.store || '')}" placeholder="z. B. Aldi">
-            <datalist id="shop-stores-m">${knownStores().map((h) => `<option value="${esc(h)}">`).join('')}</datalist></label>
+          <label class="field"><span>Laden</span><select name="store">${storeOptions(i.store, '— kein bestimmter —')}</select></label>
         </div>
         <label class="field"><span>Kategorie</span><select name="category">${CATS.map(([c, e]) => `<option value="${esc(c)}" ${i.category === c ? 'selected' : ''}>${e} ${esc(c)}</option>`).join('')}</select></label>
         <label class="field"><span>Notiz</span><input name="note" value="${esc(i.note || '')}" placeholder="z. B. die Bio-Variante"></label>

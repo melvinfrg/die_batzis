@@ -12,6 +12,10 @@ const V = { tab: 'Kosten', showInactive: false };
 
 export const perMonth = (o) => { const k = INTERVALS[o.interval]?.[1] ?? 1; return k ? (Number(o.amount) || 0) / k : 0; };
 const active = () => S.orga_items.filter((o) => o.active !== false);
+export function upcomingDates(days = 14) {
+  const T = todayStr();
+  return active().filter((o) => o.next_date && o.next_date >= T && diffDays(T, o.next_date) <= days).sort((a, b) => a.next_date.localeCompare(b.next_date));
+}
 export function deadlines(days = 60) {
   const T = todayStr();
   return active().filter((o) => o.cancel_by && o.cancel_by >= T && diffDays(T, o.cancel_by) <= days).sort((a, b) => a.cancel_by.localeCompare(b.cancel_by));
@@ -29,6 +33,8 @@ function itemCard(o) {
       <button class="icon-btn sm" data-action="og-edit" data-id="${o.id}" aria-label="Bearbeiten">✎</button>
     </div>
     <div class="orga-meta">
+      ${o.person ? `<span class="tag">${cfg(o.category).types?.person === 'who' ? `${avatar(o.person, 'xs')} ${esc(nameOf(o.person))}` : `👤 ${esc(o.person)}`}</span>` : ''}
+      ${o.next_date ? `<span class="tag ${o.next_date >= T && diffDays(T, o.next_date) <= 14 ? 'warn' : ''}">📅 ${esc(labelFor(o.category, 'next_date'))}: ${esc(fmtDate(o.next_date))}</span>` : ''}
       ${o.payer ? `<span class="tag">${avatar(o.payer, 'xs')} zahlt ${esc(nameOf(o.payer))}</span>` : ''}
       ${o.interval !== 'monthly' && o.interval !== 'once' && o.amount ? `<span class="tag">≈ ${money(perMonth(o))}/Monat</span>` : ''}
       ${o.contract_no ? `<span class="tag" title="Vertrags-/Kundennummer">#️⃣ ${esc(o.contract_no)}</span>` : ''}
@@ -121,51 +127,105 @@ export function render() {
   ${body}`;
 }
 
+// Formular je Bereich: nur die Felder, die dort Sinn ergeben
+const FIELD = {
+  provider: { label: 'Anbieter', ph: 'z. B. HUK, Telekom' },
+  person: { label: 'Wer / was?', ph: '', type: 'text' },
+  amount: { label: 'Betrag (€)', type: 'money' },
+  interval: { label: 'Zahlweise', type: 'interval' },
+  payer: { label: 'Wer zahlt?', type: 'who' },
+  contract_no: { label: 'Vertrags-/Kundennr.' },
+  start_date: { label: 'Beginn', type: 'date' },
+  end_date: { label: 'Laufzeit bis', type: 'date' },
+  cancel_by: { label: 'Kündigen bis', type: 'date' },
+  notice: { label: 'Kündigungsfrist', ph: 'z. B. 3 Monate zum Laufzeitende' },
+  next_date: { label: 'Nächster Termin', type: 'date' },
+  contact: { label: 'Kontakt', ph: 'Telefon, E-Mail, Ansprechpartner' },
+  url: { label: 'Link', ph: 'https://…', type: 'url' },
+};
+export const CAT_FORM = {
+  'Versicherungen': { title: 'z. B. Haftpflicht, Hausrat, Rechtsschutz', fields: ['provider', 'person', 'amount', 'interval', 'payer', 'contract_no', 'start_date', 'end_date', 'cancel_by', 'notice', 'contact', 'url'],
+    labels: { provider: 'Versicherung', person: 'Versichert ist …', contract_no: 'Versicherungsnummer', url: 'Kundenportal' }, ph: { provider: 'z. B. HUK, Allianz', person: 'z. B. Wir beide, Fahrrad' } },
+  'Strom & Energie': { title: 'z. B. Strom, Gas, Fernwärme', fields: ['provider', 'amount', 'interval', 'payer', 'contract_no', 'start_date', 'end_date', 'cancel_by', 'notice', 'contact', 'url'],
+    labels: { provider: 'Versorger', amount: 'Abschlag (€)', contract_no: 'Kunden-/Zählernummer', end_date: 'Preisgarantie / Laufzeit bis', url: 'Kundenportal' }, ph: { provider: 'z. B. Stadtwerke, E.ON' } },
+  'Verträge': { title: 'z. B. Handy, Internet, Fitnessstudio', fields: ['provider', 'amount', 'interval', 'payer', 'contract_no', 'start_date', 'end_date', 'cancel_by', 'notice', 'contact', 'url'], labels: { url: 'Kundenportal' } },
+  'Abos & Streaming': { title: 'z. B. Netflix, Spotify, Zeitung', fields: ['amount', 'interval', 'payer', 'next_date', 'cancel_by', 'url'],
+    labels: { next_date: 'Nächste Abbuchung', url: 'Konto-Link' } },
+  'Wohnen': { title: 'z. B. Miete, Nebenkosten, Rundfunkbeitrag', fields: ['provider', 'amount', 'interval', 'payer', 'contract_no', 'start_date', 'notice', 'contact', 'url'],
+    labels: { provider: 'Vermieter / Empfänger', contract_no: 'Vertrags-/Beitragsnr.', start_date: 'Seit' }, ph: { notice: 'z. B. 3 Monate' } },
+  'Mobilität': { title: 'z. B. Auto, Kfz-Versicherung, Deutschlandticket', fields: ['provider', 'person', 'amount', 'interval', 'payer', 'contract_no', 'next_date', 'start_date', 'end_date', 'cancel_by', 'notice', 'contact', 'url'],
+    labels: { person: 'Fahrzeug / Kennzeichen', next_date: 'Nächster TÜV / Service' }, ph: { person: 'z. B. Golf · B-AT 123' } },
+  'Finanzen': { title: 'z. B. Sparplan, Kredit, Gemeinschaftskonto', fields: ['provider', 'amount', 'interval', 'payer', 'contract_no', 'start_date', 'end_date', 'contact', 'url'],
+    labels: { provider: 'Bank', amount: 'Rate / Betrag (€)', contract_no: 'Konto-/Vertragsnr.', end_date: 'Läuft bis', url: 'Online-Banking' }, ph: { provider: 'z. B. Sparkasse, ING' } },
+  'Gesundheit': { title: 'z. B. Zahnarzt, Krankenkasse, Brille, Medikament', fields: ['provider', 'person', 'next_date', 'amount', 'interval', 'contract_no', 'contact', 'url'],
+    labels: { provider: 'Praxis / Kasse / Apotheke', person: 'Für wen?', next_date: 'Nächster Termin / fällig', amount: 'Kosten (€, optional)', contract_no: 'Versichertennummer', contact: 'Telefon / Adresse', url: 'Online-Termin / Portal' },
+    ph: { provider: 'z. B. Dr. Müller, TK' }, types: { person: 'who' }, defaults: { interval: 'once' } },
+  'Sonstiges': { title: 'Bezeichnung', fields: ['provider', 'amount', 'interval', 'payer', 'next_date', 'contact', 'url'], labels: { next_date: 'Fällig am' } },
+};
+const cfg = (cat) => CAT_FORM[cat] || CAT_FORM.Sonstiges;
+const ALL_FIELDS = Object.keys(FIELD);
+export const labelFor = (cat, k) => cfg(cat).labels?.[k] || FIELD[k].label;
+
+function fieldHtml(cat, k, o) {
+  const c = cfg(cat), f = FIELD[k];
+  const label = labelFor(cat, k), ph = c.ph?.[k] ?? f.ph ?? '';
+  const type = c.types?.[k] || f.type || 'text';
+  const v = o[k] ?? (k === 'interval' ? c.defaults?.interval : undefined);
+  let input;
+  if (type === 'money') input = `<input type="number" name="${k}" step="0.01" min="0" inputmode="decimal" value="${esc(v ?? '')}">`;
+  else if (type === 'interval') input = `<select name="${k}">${Object.entries(INTERVALS).map(([x, [l]]) => `<option value="${x}" ${(v || 'monthly') === x ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  else if (type === 'who') input = `<select name="${k}">${whoOptions(v ?? (k === 'payer' ? 'both' : ''))}</select>`;
+  else if (type === 'date') input = `<input type="date" name="${k}" value="${esc(v || '')}">`;
+  else input = `<input name="${k}" value="${esc(v || '')}" placeholder="${esc(ph)}">`;
+  return `<label class="field ${['contact', 'url'].includes(k) ? 'wide' : ''}"><span>${esc(label)}</span>${input}</label>`;
+}
+
+function fieldsHtml(cat, o) {
+  return `<div class="form-grid">${cfg(cat).fields.map((k) => fieldHtml(cat, k, o)).join('')}</div>`;
+}
+
 function form(o = {}) {
   const cat = o.category || (V.tab !== 'Kosten' && V.tab !== 'Alle' ? V.tab : 'Verträge');
   return `
-    <div class="row2">
-      <label class="field"><span>Bereich</span><select name="category">${ORGA_CATS.map(([c, e]) => `<option value="${esc(c)}" ${cat === c ? 'selected' : ''}>${e} ${esc(c)}</option>`).join('')}</select></label>
-      <label class="field"><span>Bezeichnung</span><input name="title" required autofocus value="${esc(o.title || '')}" placeholder="z. B. Haftpflicht, Strom, Handy" maxlength="120"></label>
-    </div>
-    <label class="field"><span>Anbieter</span><input name="provider" value="${esc(o.provider || '')}" placeholder="z. B. HUK, Stadtwerke, Telekom"></label>
-    <div class="row2">
-      <label class="field"><span>Betrag (€)</span><input type="number" name="amount" step="0.01" min="0" inputmode="decimal" value="${esc(o.amount ?? '')}"></label>
-      <label class="field"><span>Zahlweise</span><select name="interval">${Object.entries(INTERVALS).map(([k, [l]]) => `<option value="${k}" ${(o.interval || 'monthly') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    </div>
-    <div class="row2">
-      <label class="field"><span>Wer zahlt?</span><select name="payer">${whoOptions(o.payer ?? 'both')}</select></label>
-      <label class="field"><span>Vertrags-/Kundennr.</span><input name="contract_no" value="${esc(o.contract_no || '')}"></label>
-    </div>
-    <div class="row2">
-      <label class="field"><span>Beginn</span><input type="date" name="start_date" value="${esc(o.start_date || '')}"></label>
-      <label class="field"><span>Laufzeit bis</span><input type="date" name="end_date" value="${esc(o.end_date || '')}"></label>
-    </div>
-    <div class="row2">
-      <label class="field"><span>Kündigen bis</span><input type="date" name="cancel_by" value="${esc(o.cancel_by || '')}"></label>
-      <label class="field"><span>Kündigungsfrist</span><input name="notice" value="${esc(o.notice || '')}" placeholder="z. B. 3 Monate zum Laufzeitende"></label>
-    </div>
-    <label class="field"><span>Kontakt</span><input name="contact" value="${esc(o.contact || '')}" placeholder="Telefon, E-Mail, Ansprechpartner"></label>
-    <label class="field"><span>Link (Kundenportal)</span><input name="url" value="${esc(o.url || '')}" placeholder="https://…"></label>
+    <div class="field"><span>Bereich</span><div class="cat-pick">${ORGA_CATS.map(([c, e]) => `<label><input type="radio" name="category" value="${esc(c)}" ${cat === c ? 'checked' : ''}><span>${e} ${esc(c)}</span></label>`).join('')}</div></div>
+    <label class="field"><span>Bezeichnung</span><input name="title" required autofocus value="${esc(o.title || '')}" placeholder="${esc(cfg(cat).title)}" maxlength="120"></label>
+    <div id="og-fields">${fieldsHtml(cat, o)}</div>
     <label class="field"><span>Notizen</span><textarea name="notes" rows="2">${esc(o.notes || '')}</textarea></label>
-    <label class="switch"><input type="checkbox" name="active" ${o.active === false ? '' : 'checked'}><span>Aktiv (zählt zu den Kosten)</span></label>
+    <label class="switch"><input type="checkbox" name="active" ${o.active === false ? '' : 'checked'}><span>Aktiv${cfg(cat).fields.includes('amount') ? ' (zählt zu den Kosten)' : ''}</span></label>
     <p class="hint">🔒 Nur ihr beide könnt diese Daten sehen. Passwörter bitte trotzdem nicht hier speichern.</p>`;
 }
-const fromForm = (d) => ({
-  category: d.category, title: d.title, provider: d.provider || null,
-  amount: d.amount === '' || d.amount == null ? null : Number(String(d.amount).replace(',', '.')), interval: d.interval || 'monthly',
-  payer: d.payer || null, contract_no: d.contract_no || null, start_date: d.start_date || null, end_date: d.end_date || null,
-  cancel_by: d.cancel_by || null, notice: d.notice || null, contact: d.contact || null, url: d.url ? safeUrl(d.url) : null,
-  notes: d.notes || null, active: !!d.active,
-});
+// Beim Wechsel des Bereichs passende Felder einblenden, Eingaben behalten
+function bindForm(formEl, o = {}) {
+  const cur = { ...o };
+  formEl.querySelectorAll('[name=category]').forEach((r) => (r.onchange = () => {
+    formEl.querySelectorAll('#og-fields [name]').forEach((el) => (cur[el.name] = el.value));
+    const cat = formEl.querySelector('[name=category]:checked').value;
+    formEl.querySelector('#og-fields').innerHTML = fieldsHtml(cat, cur);
+    formEl.querySelector('[name=title]').placeholder = cfg(cat).title;
+  }));
+}
+const fromForm = (d) => {
+  const cat = d.category; const present = new Set(cfg(cat).fields);
+  const out = { category: cat, title: d.title, notes: d.notes || null, active: !!d.active };
+  for (const k of ALL_FIELDS) {
+    if (!present.has(k)) { out[k] = k === 'interval' ? 'once' : null; continue; }
+    const v = d[k];
+    if (k === 'amount') out[k] = v === '' || v == null ? null : Number(String(v).replace(',', '.'));
+    else if (k === 'interval') out[k] = v || 'monthly';
+    else if (k === 'url') out[k] = v ? safeUrl(v) : null;
+    else out[k] = v || null;
+  }
+  if (!present.has('amount')) out.amount = null;
+  return out;
+};
 
 export const actions = {
   'og-tab': (el) => { V.tab = el.dataset.v; },
   'og-inactive': () => { V.showInactive = !V.showInactive; },
-  'og-new': () => openModal({ title: 'Neuer Eintrag', body: form(), wide: true, submitLabel: 'Speichern',
+  'og-new': () => openModal({ title: 'Neuer Eintrag', body: form(), wide: true, submitLabel: 'Speichern', onOpen: (f) => bindForm(f),
     onSubmit: async (d) => { await add('orga_items', fromForm(d)); toast('Eingetragen 🗂️'); } }),
   'og-edit': (el) => {
     const o = S.orga_items.find((x) => x.id === el.dataset.id); if (!o) return;
-    openModal({ title: 'Eintrag bearbeiten', body: form(o), wide: true, onSubmit: (d) => patch('orga_items', o.id, fromForm(d)), onDelete: () => del('orga_items', o.id) });
+    openModal({ title: 'Eintrag bearbeiten', body: form(o), wide: true, onOpen: (f) => bindForm(f, o), onSubmit: (d) => patch('orga_items', o.id, fromForm(d)), onDelete: () => del('orga_items', o.id) });
   },
 };

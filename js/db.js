@@ -41,6 +41,7 @@ if (!isDemo) {
       return out;
     },
     async deletePhoto(path) { ok(await sb.storage.from('photos').remove([path])); },
+    async fetchIcal() { return ok(await sb.functions.invoke('ical', { body: {} })); },
     subscribe(cb) {
       sb.channel('batzi-live')
         .on('postgres_changes', { event: '*', schema: 'public' }, (p) => cb(p.table))
@@ -98,6 +99,11 @@ if (!isDemo) {
     },
     async photoUrls(paths) { const o = {}; paths.forEach((p) => (o[p] = p.startsWith('http') ? p : store.get('batzi-demo-photo-' + p))); return o; },
     async deletePhoto(path) { try { localStorage.removeItem('batzi-demo-photo-' + path); } catch {} },
+    async fetchIcal() {
+      const feeds = (read('app_settings').find((r) => r.id === 'ical_feeds')?.value?.feeds) || [];
+      const T = todayStr();
+      return { feeds: feeds.map((f) => ({ id: f.id, events: [0, 1, 3, 4, 7].map((d, i) => ({ id: 'd' + i, title: ['Frühdienst', 'Spätdienst', 'Nachtdienst', 'Frei', 'Frühdienst'][i], event_date: addDays(T, d), all_day: i === 3, start_time: ['06:00', '14:00', '21:30', null, '06:00'][i], end_time: ['14:30', '22:00', '06:30', null, '14:30'][i] })) })) };
+    },
     async removeMany(t, ids) { write(t, read(t).filter((r) => !ids.includes(r.id))); },
     subscribe(cb) {
       window.addEventListener('storage', (e) => { if (e.key?.startsWith('batzi-demo-')) cb(e.key.replace('batzi-demo-', '')); });

@@ -1,5 +1,6 @@
-import { S, add, patch, del, avatar, whoOptions, COLORS } from '../state.js';
-import { esc, todayStr, toDateStr, parseDate, addDays, addMonths, diffDays, fmtDate, fmtTime, relDay } from '../util.js';
+import { S, add, patch, del, avatar, whoOptions, COLORS, getSetting, setSetting, rerender, nameOf } from '../state.js';
+import { db, isDemo } from '../db.js';
+import { esc, todayStr, toDateStr, parseDate, addDays, addMonths, diffDays, fmtDate, fmtTime, relDay, uid, safeUrl } from '../util.js';
 import { openModal, toast } from '../ui.js';
 import { editTodo } from './todos.js';
 
@@ -18,7 +19,25 @@ export function occursOn(ev, ds) {
   return false;
 }
 const evSort = (a, b) => (a.all_day === b.all_day ? String(a.start_time || '').localeCompare(String(b.start_time || '')) : a.all_day ? -1 : 1);
-export const eventsOn = (ds) => S.events.filter((e) => occursOn(e, ds)).sort(evSort);
+// ---------- Externe Kalender (z. B. SuperShift über Google-Kalender) ----------
+export const EXT = { events: [], errors: {}, loaded: 0, loading: false, sig: '' };
+export const feeds = () => getSetting('ical_feeds', {}).feeds || [];
+export async function loadExternal(force = false) {
+  const fs = feeds();
+  const sig = JSON.stringify(fs);
+  if (!fs.length) { if (EXT.events.length) { EXT.events = []; rerender(); } return; }
+  if (EXT.loading || (!force && sig === EXT.sig && Date.now() - EXT.loaded < 15 * 60000)) return;
+  EXT.loading = true; EXT.sig = sig;
+  try {
+    const r = await db.fetchIcal();
+    const fmap = Object.fromEntries(fs.map((f) => [f.id, f]));
+    EXT.events = (r.feeds || []).flatMap((fd) => (fd.events || []).map((e) => ({ ...e, id: `x-${fd.id}-${e.id}`, external: true, feed: fd.id,
+      feedName: fmap[fd.id]?.name || 'Extern', color: fmap[fd.id]?.color || 'sky', who: fmap[fd.id]?.who || null, recurrence: 'none' })));
+    EXT.errors = Object.fromEntries((r.feeds || []).filter((f) => f.error).map((f) => [f.id, f.error]));
+  } catch (e) { console.error(e); EXT.errors = { _all: e.message }; }
+  finally { EXT.loading = false; EXT.loaded = Date.now(); rerender(); }
+}
+export const eventsOn = (ds) => [...S.events, ...EXT.events].filter((e) => occursOn(e, ds)).sort(evSort);
 export const tripsOn = (ds) => S.trips.filter((t) => t.start_date && ds >= t.start_date && ds <= (t.end_date || t.start_date));
 export const todosOn = (ds) => S.todos.filter((t) => !t.done && t.due_date === ds);
 
@@ -39,15 +58,16 @@ const ageNote = (e, ds) => (e.recurrence === 'yearly' && ds > e.event_date ? ` �
 
 export function eventRow(e, ds, { showDate = false } = {}) {
   const multi = e.recurrence === 'none' && e.end_date && e.end_date > e.event_date;
-  return `<button class="ev-row c-${esc(e.color || 'peach')}" data-action="ev-edit" data-id="${e.id}">
+  return `<button class="ev-row c-${esc(e.color || 'peach')} ${e.external ? 'ext' : ''}" data-action="${e.external ? 'ev-ext' : 'ev-edit'}" data-id="${esc(e.id)}">
     <span class="ev-time">${showDate ? `<b>${esc(relDay(ds))}</b>` : ''}${e.all_day ? 'Ganztägig' : esc(fmtTime(e.start_time)) + (e.end_time ? '–' + esc(fmtTime(e.end_time)) : '')}</span>
     <span class="ev-text"><span class="ev-title">${esc(e.title)}${esc(ageNote(e, ds))}</span>
-      <span class="ev-sub">${multi ? `bis ${esc(fmtDate(e.end_date, 'short'))} · ` : ''}${e.location ? '📍 ' + esc(e.location) : ''}${e.recurrence && e.recurrence !== 'none' ? ' 🔁' : ''}</span></span>
+      <span class="ev-sub">${multi ? `bis ${esc(fmtDate(e.end_date, 'short'))} · ` : ''}${e.location ? '📍 ' + esc(e.location) : ''}${e.recurrence && e.recurrence !== 'none' ? ' 🔁' : ''}${e.external ? `<span class="ext-tag">🔗 ${esc(e.feedName)}</span>` : ''}</span></span>
     ${e.who ? avatar(e.who, 'sm') : ''}
   </button>`;
 }
 
 export function render() {
+  queueMicrotask(() => loadExternal());
   const T = todayStr();
   const m0 = C.month;
   const first = parseDate(m0);
@@ -79,8 +99,9 @@ export function render() {
   return `
   <header class="page-head">
     <div><h1>Kalender</h1><p class="sub">Termine, Reisen & fällige ToDos an einem Ort.</p></div>
-    <button class="btn primary" data-action="ev-new">＋ Termin</button>
+    <div class="btn-row"><button class="btn ghost" data-action="ext-manage">🔗 Kalender verbinden${feeds().length ? ` <span class="count">${feeds().length}</span>` : ''}</button><button class="btn primary" data-action="ev-new">＋ Termin</button></div>
   </header>
+  ${Object.keys(EXT.errors).length ? `<p class="alert">⚠️ Ein verbundener Kalender konnte nicht geladen werden: ${esc(Object.values(EXT.errors)[0])} <button class="link" data-action="ext-manage">Prüfen</button></p>` : ''}
 
   <div class="cal-layout">
     <section class="card cal">
@@ -156,7 +177,63 @@ export function editEvent(id) {
     onSubmit: (d) => patch('events', id, fromForm(d)), onDelete: () => del('events', id) });
 }
 
+function feedManager() {
+  const fs = feeds();
+  const dlg = openModal({
+    title: '🔗 Kalender verbinden', wide: true, submitLabel: 'Kalender hinzufügen',
+    body: `
+      ${fs.length ? `<div class="feed-list">${fs.map((f) => `<div class="feed-row c-${esc(f.color || 'sky')}-soft">
+        <span class="dot c-${esc(f.color || 'sky')}"></span>
+        <span class="grow"><b>${esc(f.name)}</b><small>${f.who ? esc(nameOf(f.who)) + ' · ' : ''}${EXT.errors[f.id] ? `⚠️ ${esc(EXT.errors[f.id])}` : `${EXT.events.filter((e) => e.feed === f.id).length} Termine geladen`}</small></span>
+        <button type="button" class="icon-btn sm" data-feed-del="${esc(f.id)}" title="Entfernen">🗑️</button></div>`).join('')}</div>
+        <button type="button" class="btn ghost sm" data-feed-reload>↻ Jetzt neu laden</button>` : ''}
+      <h3>Neuen Kalender hinzufügen</h3>
+      <div class="row2">
+        <label class="field"><span>Name</span><input name="name" required placeholder="z. B. Schichten Amelie"></label>
+        <label class="field"><span>Wessen Kalender?</span><select name="who">${whoOptions('')}</select></label>
+      </div>
+      <label class="field"><span>Kalender-Link (iCal / ICS)</span><input name="url" required placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"></label>
+      <div class="field"><span>Farbe</span><div class="swatches">${Object.entries(COLORS).map(([k, v]) => `<label class="swatch c-${k}" title="${v}"><input type="radio" name="color" value="${k}" ${k === 'sky' ? 'checked' : ''}><span></span></label>`).join('')}</div></div>
+      <details class="help" ${fs.length ? '' : 'open'}><summary>📱 So verbindest du SuperShift</summary>
+        <ol>
+          <li>In <b>SuperShift</b> (Pro) den <b>Export in den Kalender</b> aktivieren und als Ziel einen <b>Google-Kalender</b> wählen (am besten einen eigenen Kalender, z. B. „Schichten“).</li>
+          <li>Am Computer <b>calendar.google.com</b> öffnen → links beim Kalender „Schichten“ auf <b>⋮ → Einstellungen und Freigabe</b>.</li>
+          <li>Ganz unten <b>„Privatadresse im iCal-Format“</b> kopieren und oben einfügen.</li>
+        </ol>
+        <p class="hint">Bei iCloud: Kalender-App → Kalender teilen → „Öffentlicher Kalender“ → Link kopieren. Neue Schichten erscheinen hier automatisch (Google aktualisiert den Link ca. alle paar Stunden). Termine aus verbundenen Kalendern können hier nur angesehen, nicht bearbeitet werden.</p>
+      </details>`,
+    onOpen: (form) => {
+      form.querySelectorAll('[data-feed-del]').forEach((b) => (b.onclick = async () => {
+        if (!confirm('Kalender-Verbindung entfernen?')) return;
+        await setSetting('ical_feeds', { feeds: feeds().filter((f) => f.id !== b.dataset.feedDel) });
+        dlg.close(); loadExternal(true);
+      }));
+      const rl = form.querySelector('[data-feed-reload]'); if (rl) rl.onclick = async () => { rl.disabled = true; await loadExternal(true); dlg.close(); feedManager(); };
+    },
+    onSubmit: async (d) => {
+      const url = String(d.url).trim().replace(/^webcal:\/\//i, 'https://');
+      if (!safeUrl(url) || !/^https:/i.test(url)) { toast('Bitte einen https- oder webcal-Link einfügen', 'error'); return false; }
+      await setSetting('ical_feeds', { feeds: [...feeds(), { id: uid(), name: d.name, url, who: d.who || null, color: d.color || 'sky' }] });
+      toast('Kalender verbunden – lade Termine …');
+      await loadExternal(true);
+      const n = EXT.events.length; const err = Object.values(EXT.errors)[0];
+      toast(err ? `⚠️ ${err}` : `${n} Termine geladen 🎉`, err ? 'error' : 'info');
+    },
+  });
+}
+
+function showExternal(id) {
+  const e = EXT.events.find((x) => x.id === id); if (!e) return;
+  openModal({ title: e.title, hideCancel: true, body: `
+    <p><b>${esc(fmtDate(e.event_date, 'long'))}</b>${e.end_date ? ` – ${esc(fmtDate(e.end_date, 'long'))}` : ''}</p>
+    <p>${e.all_day ? 'Ganztägig' : `${esc(fmtTime(e.start_time))}${e.end_time ? ' – ' + esc(fmtTime(e.end_time)) + ' Uhr' : ' Uhr'}`}</p>
+    ${e.location ? `<p>📍 ${esc(e.location)}</p>` : ''}
+    <p class="hint">🔗 Aus dem verbundenen Kalender „${esc(e.feedName)}“ – Änderungen bitte dort (z. B. in SuperShift) machen.</p>` });
+}
+
 export const actions = {
+  'ext-manage': () => feedManager(),
+  'ev-ext': (el) => showExternal(el.dataset.id),
   'cal-prev': () => { C.month = addMonths(C.month, -1); },
   'cal-next': () => { C.month = addMonths(C.month, 1); },
   'cal-today': () => { C.month = todayStr().slice(0, 7) + '-01'; C.sel = todayStr(); },

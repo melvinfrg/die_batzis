@@ -107,4 +107,36 @@ export const BUILTIN_RECIPES = [
   R('rührei', 'Rührei mit Brot & Avocado', '🥑', 10, ['vegetarisch', 'schnell', 'frühstück'],
     [['Eier', '4'], ['Brot', '4 Scheiben'], ['Avocado', '1'], ['Schnittlauch', 'etwas'], ['Butter', '1 EL']],
     'Eier verquirlen, salzen und in Butter bei kleiner Hitze cremig stocken lassen.\nBrot rösten, mit Avocado belegen.\nRührei drauf, Schnittlauch drüber.'),
+  R('af-haehnchen', 'Knusprige Hähnchenschenkel mit Kartoffeln', '🍗', 35, ['fleisch'],
+    [['Hähnchenschenkel', '4'], ['Kartoffeln', '500 g'], ['Paprikapulver', '2 TL'], ['Knoblauch', '2 Zehen'], ['Olivenöl', '2 EL'], ['Rosmarin', '1 Zweig']],
+    'Schenkel mit Öl, Paprikapulver, gepresstem Knoblauch und Salz einreiben.\nKartoffeln in Spalten schneiden, mit Öl, Salz und Rosmarin mischen.\nAirFryer: Schenkel 200 °C ca. 25 Min., nach der Hälfte wenden; danach Kartoffeln 15–18 Min.\nOfen: beides zusammen 200 °C ca. 40 Min.'),
+  R('af-spalten', 'Kartoffelspalten mit Kräuterquark', '🥔', 25, ['vegetarisch'],
+    [['Kartoffeln', '700 g'], ['Quark', '250 g'], ['Schnittlauch', '½ Bund'], ['Paprikapulver', '1 TL'], ['Olivenöl', '1 EL'], ['Zitrone', '½']],
+    'Kartoffeln waschen, in Spalten schneiden, mit Öl, Salz und Paprikapulver mischen.\nAirFryer 200 °C ca. 20 Min., zwischendurch schütteln (Ofen: 220 °C ca. 30 Min.).\nQuark mit Schnittlauch, Zitronensaft, Salz und Pfeffer verrühren.'),
+  R('af-halloumi', 'Halloumi-Gemüse mit Joghurtdip', '🧀', 20, ['vegetarisch', 'schnell'],
+    [['Halloumi', '250 g'], ['Zucchini', '1'], ['Paprika', '1'], ['Kirschtomaten', '200 g'], ['Joghurt', '150 g'], ['Fladenbrot', '1']],
+    'Gemüse und Halloumi in Würfel schneiden, mit Öl und Oregano mischen.\nAirFryer 200 °C ca. 12 Min., einmal schütteln (Ofen: 220 °C ca. 20 Min.).\nJoghurt mit Salz und etwas Knoblauch verrühren, mit Fladenbrot servieren.'),
+  R('af-gnocchi', 'Knusprige Gnocchi mit Tomaten & Feta', '🍅', 20, ['vegetarisch', 'schnell'],
+    [['Gnocchi', '500 g'], ['Kirschtomaten', '250 g'], ['Feta', '150 g'], ['Basilikum', '1 Handvoll'], ['Olivenöl', '2 EL']],
+    'Gnocchi und Tomaten mit Öl, Salz und Pfeffer mischen.\nAirFryer 200 °C ca. 12 Min., zwischendurch schütteln (Ofen: 220 °C ca. 20 Min.).\nFeta drüberbröseln, noch 3 Min. weitergaren, mit Basilikum servieren.'),
+  R('mw-tasse', 'Schoko-Tassenkuchen', '🍫', 5, ['vegetarisch', 'schnell', 'süß'],
+    [['Mehl', '4 EL'], ['Zucker', '3 EL'], ['Kakao', '2 EL'], ['Eier', '1'], ['Milch', '3 EL'], ['Öl', '2 EL']],
+    'Alles in einer großen Tasse glatt rühren.\nIn der Mikrowelle bei 800 W ca. 90 Sekunden garen.\nKurz abkühlen lassen – am besten mit Vanilleeis.'),
+  R('mw-kartoffel', 'Gefüllte Kartoffel aus der Mikrowelle', '🥔', 15, ['vegetarisch', 'schnell'],
+    [['Große Kartoffeln', '2'], ['Käse (gerieben)', '60 g'], ['Schmand', '100 g'], ['Frühlingszwiebeln', '2']],
+    'Kartoffeln mehrmals einstechen, auf einem Teller bei 800 W ca. 8–10 Min. garen, einmal wenden.\nAufschneiden, etwas zerdrücken, Käse rein, nochmal 1 Min.\nMit Schmand und Frühlingszwiebeln servieren.'),
 ];
+
+// Womit wird gekocht? (eines davon reicht)
+export const EQUIPMENT = { herd: '🍳 Herd', ofen: '🔥 Ofen', airfryer: '💨 AirFryer', mikrowelle: '📡 Mikrowelle', grill: '🍖 Grill', ohne: '🥗 Ohne Kochen' };
+const EQ = {
+  aglio: ['herd'], tomatensosse: ['herd'], shakshuka: ['herd'], curry: ['herd'], chili: ['herd'], ofengemuese: ['ofen', 'airfryer'],
+  haehnchenreis: ['herd'], friedrice: ['herd'], wraps: ['herd'], dal: ['herd'], kartoffelsuppe: ['herd'], flammkuchen: ['ofen', 'airfryer'],
+  quesadillas: ['herd', 'airfryer'], lachs: ['ofen', 'airfryer'], gnocchi: ['herd'], pfannkuchen: ['herd'], griechsalat: ['ohne'],
+  bolognese: ['herd'], bauernfruehstueck: ['herd'], couscous: ['ohne'], teriyaki: ['herd'], pesto: ['herd'], tomatensuppe: ['herd'],
+  burger: ['herd', 'grill'], kuerbissuppe: ['herd'], auflauf: ['ofen'], bratkartoffeln: ['herd'], mie: ['herd'], risotto: ['herd'],
+  oats: ['ohne'], kaesespaetzle: ['herd'], paprika: ['ofen', 'airfryer'], tacos: ['herd'], 'rührei': ['herd'],
+  'af-haehnchen': ['airfryer', 'ofen'], 'af-spalten': ['airfryer', 'ofen'], 'af-halloumi': ['airfryer', 'ofen'], 'af-gnocchi': ['airfryer', 'ofen'],
+  'mw-tasse': ['mikrowelle'], 'mw-kartoffel': ['mikrowelle'],
+};
+BUILTIN_RECIPES.forEach((r) => (r.equipment = EQ[r.id.slice(2)] || []));

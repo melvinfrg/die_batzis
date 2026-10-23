@@ -1,13 +1,15 @@
 import { S, add, patch, del, getSetting, setSetting, nameOf } from '../state.js';
 import { esc, todayStr, safeUrl, cssUrl, hostOf } from '../util.js';
 import { openModal, toast, burst, centerOf } from '../ui.js';
-import { BUILTIN_RECIPES, BASICS } from '../recipes-data.js';
+import { BUILTIN_RECIPES, BASICS, EQUIPMENT } from '../recipes-data.js';
 import { addShopping } from './shopping.js';
 
 const TAGS = { vegetarisch: '🥦 Vegetarisch', vegan: '🌱 Vegan', schnell: '⚡ Schnell', fleisch: '🍗 Fleisch', fisch: '🐟 Fisch', pasta: '🍝 Pasta', suppe: '🍲 Suppe', salat: '🥗 Salat', ofen: '🔥 Ofen', frühstück: '🥐 Frühstück', süß: '🍰 Süß', resteessen: '♻️ Reste' };
-const V = { tab: 'today', q: '', tag: 'all', shuffle: 0 };
+const V = { tab: 'today', q: '', tag: 'all', shuffle: 0, eq: 'all' };
 
-export const prefs = () => ({ veg: false, max: 0, count: 3, favorites: [], hidden: [], ...getSetting('recipe_prefs', {}) });
+export const prefs = () => ({ veg: false, max: 0, count: 3, favorites: [], hidden: [], equip: Object.keys(EQUIPMENT), ...getSetting('recipe_prefs', {}) });
+const eqOk = (r, allowed) => !(r.equipment || []).length || r.equipment.some((e) => allowed.includes(e));
+const eqIcons = (r) => (r.equipment || []).map((e) => `<span class="tag eq" title="${esc(EQUIPMENT[e] || e)}">${esc((EQUIPMENT[e] || e).split(' ')[0])}</span>`).join('');
 const savePrefs = (p) => setSetting('recipe_prefs', { ...prefs(), ...p });
 export const pantry = () => getSetting('pantry', {}).items || [];
 export const mealToday = () => { const m = getSetting('meal_today', {}); return m.date === todayStr() ? allRecipes().find((r) => r.id === m.recipe_id) : null; };
@@ -39,7 +41,8 @@ function pool() {
   const p = prefs();
   return allRecipes().filter((r) => !p.hidden.includes(r.id)
     && (!p.veg || (r.tags || []).some((t) => t === 'vegetarisch' || t === 'vegan'))
-    && (!p.max || !r.minutes || r.minutes <= p.max));
+    && (!p.max || !r.minutes || r.minutes <= p.max)
+    && eqOk(r, p.equip));
 }
 export function dailySuggestions(n = prefs().count, extra = 0) {
   const rnd = seeded(todayStr() + ':' + extra);
@@ -57,7 +60,7 @@ export function recipeCard(r, { showMatch = pantry().length > 0, size = '' } = {
     <span class="rc-emoji ${bg ? 'img' : ''}" ${bg ? `style="background-image:${esc(bg)}"` : ''}>${bg ? '' : esc(r.emoji || '🍽️')}</span>
     <span class="rc-body">
       <span class="rc-title">${esc(r.title)}${fav ? ' <span title="Favorit">⭐</span>' : ''}</span>
-      <span class="rc-meta">${r.minutes ? `<span class="tag">⏱️ ${r.minutes} Min.</span>` : ''}${tagChips(r)}${r.own ? '<span class="tag">📒 Unser Rezept</span>' : ''}</span>
+      <span class="rc-meta">${r.minutes ? `<span class="tag">⏱️ ${r.minutes} Min.</span>` : ''}${eqIcons(r)}${tagChips(r)}${r.own ? '<span class="tag">📒 Unser Rezept</span>' : ''}</span>
       ${showMatch && m.total ? `<span class="rc-match"><span class="progress sm"><i style="width:${(m.pct * 100).toFixed(0)}%"></i></span><small>${m.got} von ${m.total} Zutaten da</small></span>` : ''}
     </span>
   </button>`;
@@ -85,12 +88,13 @@ function renderToday() {
   <div class="recipe-grid">${sugg.map((r) => recipeCard(r, { size: 'big' })).join('') || '<div class="empty card"><p>Keine Rezepte passen zu euren Einstellungen.</p></div>'}</div>
   <section class="card prefs">
     <h3>⚙️ Vorschläge einstellen</h3>
+    <div class="field"><span>Womit wollt ihr kochen?</span><div class="chips">${Object.entries(EQUIPMENT).map(([k, l]) => `<button class="chip ${p.equip.includes(k) ? 'on' : ''}" data-action="rc-pref-eq" data-v="${k}">${l}</button>`).join('')}</div></div>
     <div class="prefs-row">
       <label class="switch"><input type="checkbox" data-change="rc-pref-veg" ${p.veg ? 'checked' : ''}><span>Nur vegetarisch/vegan</span></label>
       <label class="field inline"><span>Max. Zeit</span><select data-change="rc-pref-max">${[[0, 'egal'], [15, '15 Min.'], [20, '20 Min.'], [30, '30 Min.'], [45, '45 Min.']].map(([v, l]) => `<option value="${v}" ${p.max === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field inline"><span>Vorschläge pro Tag</span><select data-change="rc-pref-count">${[1, 2, 3, 4, 6].map((v) => `<option ${p.count === v ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     </div>
-    <p class="hint">Die Vorschläge wechseln jeden Tag automatisch und erscheinen auch auf dem Dashboard. Rezepte mit Zutaten, die ihr schon da habt, und Favoriten kommen öfter dran.</p>
+    <p class="hint">Tipp: Nur „AirFryer“ antippen, wenn ihr heute nur den AirFryer nutzen wollt. Die Vorschläge wechseln jeden Tag automatisch und erscheinen auch auf dem Dashboard. Rezepte mit Zutaten, die ihr schon da habt, und Favoriten kommen öfter dran.</p>
   </section>`;
 }
 
@@ -113,11 +117,12 @@ function renderPantry() {
 function renderAll() {
   const q = V.q.toLowerCase();
   const favs = prefs().favorites;
-  const list = allRecipes().filter((r) => (V.tag === 'all' || (V.tag === 'fav' ? favs.includes(r.id) : V.tag === 'own' ? r.own : (r.tags || []).includes(V.tag)))
+  const list = allRecipes().filter((r) => (V.eq === 'all' || (r.equipment || []).includes(V.eq)) && (V.tag === 'all' || (V.tag === 'fav' ? favs.includes(r.id) : V.tag === 'own' ? r.own : (r.tags || []).includes(V.tag)))
     && (!q || `${r.title} ${(r.ingredients || []).map((i) => i.name).join(' ')}`.toLowerCase().includes(q)));
   const chip = (v, l) => `<button class="chip ${V.tag === v ? 'on' : ''}" data-action="rc-tag" data-v="${esc(v)}">${l}</button>`;
   return `
   <div class="toolbar">
+    <div class="chips">${Object.entries(EQUIPMENT).map(([k, l]) => `<button class="chip ${V.eq === k ? 'on' : ''}" data-action="rc-eq" data-v="${k}">${l}</button>`).join('')}</div>
     <div class="chips">${chip('all', 'Alle')}${chip('fav', '⭐ Favoriten')}${chip('own', '📒 Unsere')}${Object.entries(TAGS).map(([k, l]) => chip(k, l)).join('')}</div>
     <div class="toolbar-right"><input type="search" id="rc-search" placeholder="Rezept oder Zutat suchen …" value="${esc(V.q)}" data-input="rc-search"></div>
   </div>
@@ -133,7 +138,7 @@ export function openRecipe(id) {
   const dlg = openModal({
     title: `${r.emoji || '🍽️'} ${r.title}`, wide: true, hideCancel: true,
     body: `
-      <div class="rc-detail-meta">${r.minutes ? `<span class="tag">⏱️ ${r.minutes} Min.</span>` : ''}<span class="tag">👥 ${r.servings || 2} Portionen</span>${tagChips(r)}${r.own && r.created_by ? `<span class="tag">von ${esc(nameOf(r.created_by))}</span>` : ''}</div>
+      <div class="rc-detail-meta">${r.minutes ? `<span class="tag">⏱️ ${r.minutes} Min.</span>` : ''}${(r.equipment || []).map((e) => `<span class="tag">${esc(EQUIPMENT[e] || e)}</span>`).join('')}<span class="tag">👥 ${r.servings || 2} Portionen</span>${tagChips(r)}${r.own && r.created_by ? `<span class="tag">von ${esc(nameOf(r.created_by))}</span>` : ''}</div>
       <div class="rc-detail">
         <div>
           <h3>Zutaten</h3>
@@ -199,6 +204,7 @@ function recipeForm(r = {}) {
       <label class="field"><span>Emoji</span><input name="emoji" value="${esc(r.emoji || '🍽️')}" maxlength="4"></label>
       <label class="field"><span>Dauer (Minuten)</span><input type="number" name="minutes" min="1" max="600" value="${esc(r.minutes ?? '')}"></label>
     </div>
+    <div class="field"><span>Womit wird gekocht?</span><div class="chips">${Object.entries(EQUIPMENT).map(([k, l]) => `<label class="chip-check"><input type="checkbox" name="eq_${k}" ${(r.equipment || []).includes(k) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
     <div class="field"><span>Eigenschaften</span><div class="chips">${Object.entries(TAGS).map(([k, l]) => `<label class="chip-check"><input type="checkbox" name="tag_${k}" ${(r.tags || []).includes(k) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
     <label class="field"><span>Zutaten <small>(eine pro Zeile, z. B. „200 g Nudeln“)</small></span><textarea name="ingredients" rows="6" placeholder="200 g Nudeln&#10;1 Zwiebel&#10;2 EL Olivenöl">${esc((r.ingredients || []).map((i) => `${i.amount ? i.amount + ' ' : ''}${i.name}`).join('\n'))}</textarea></label>
     <label class="field"><span>Zubereitung <small>(ein Schritt pro Zeile)</small></span><textarea name="steps" rows="5">${esc(r.steps || '')}</textarea></label>
@@ -209,7 +215,7 @@ function recipeForm(r = {}) {
 }
 const fromForm = (d) => ({
   title: d.title, emoji: d.emoji || '🍽️', minutes: d.minutes ? Number(d.minutes) : null, servings: 2,
-  tags: Object.keys(TAGS).filter((k) => d['tag_' + k]), ingredients: parseIngredients(d.ingredients), steps: d.steps || null,
+  tags: Object.keys(TAGS).filter((k) => d['tag_' + k]), equipment: Object.keys(EQUIPMENT).filter((k) => d['eq_' + k]), ingredients: parseIngredients(d.ingredients), steps: d.steps || null,
   url: d.url ? safeUrl(d.url) : null, image_url: d.image_url ? safeUrl(d.image_url) : null,
 });
 function editRecipe(id) {
@@ -229,6 +235,8 @@ export const actions = {
   'rc-new': () => openModal({ title: 'Eigenes Rezept', body: recipeForm(), wide: true, submitLabel: 'Speichern',
     onSubmit: async (d) => { await add('recipes', fromForm(d)); toast('Rezept gespeichert 📒'); } }),
   'rc-pref-veg': (el) => savePrefs({ veg: el.checked }),
+  'rc-pref-eq': (el) => { const cur = prefs().equip; const k = el.dataset.v; const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k]; return savePrefs({ equip: next.length ? next : [k] }); },
+  'rc-eq': (el) => { V.eq = V.eq === el.dataset.v ? 'all' : el.dataset.v; },
   'rc-pref-max': (el) => savePrefs({ max: Number(el.value) }),
   'rc-pref-count': (el) => savePrefs({ count: Number(el.value) }),
   'rc-pantry-add': (f) => {

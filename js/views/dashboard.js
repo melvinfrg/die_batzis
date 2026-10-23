@@ -2,13 +2,13 @@ import { S, myProfile, partner, avatar } from '../state.js';
 import { esc, todayStr, fmtDate, diffDays, plural, fmtRange } from '../util.js';
 import { openTodos, sortTodos, todoItem, actions as todoActions } from './todos.js';
 import { openItems, catEmoji, actions as shopActions } from './shopping.js';
-import { upcoming, eventRow, actions as calActions } from './calendar.js';
+import { upcoming, eventRow, loadExternal, actions as calActions } from './calendar.js';
 import { sortedTrackers, trackerCard } from './tracker.js';
 import { nextTrip, tripStatus, countdownText } from './trips.js';
 import { myToday, theirToday, streak, bubble, feelingOf, FEEL } from './diary.js';
 import { photoCard, actions as photoActions } from './photos.js';
 import { dailySuggestions, mealToday, openRecipe } from './recipes.js';
-import { deadlines } from './orga.js';
+import { deadlines, upcomingDates, labelFor, ORGA_CATS } from './orga.js';
 import { relDay as rel } from '../util.js';
 
 function cookCard() {
@@ -31,6 +31,7 @@ function greeting() {
 }
 
 export function render() {
+  queueMicrotask(() => loadExternal());
   const T = todayStr();
   const mp = myProfile(), p = partner();
   const open = openTodos();
@@ -54,6 +55,7 @@ export function render() {
     <div class="hero-avatars">${mp ? avatar(mp.id, 'lg') : ''}${p ? avatar(p.id, 'lg') : ''}</div>
   </section>
 
+  ${upcomingDates(14).map((o) => `<a class="alert soft" href="#/orga">${(ORGA_CATS.find(([c]) => c === o.category) || ['', '📌'])[1]} <b>${esc(o.title)}</b> – ${esc(labelFor(o.category, 'next_date'))}: ${esc(fmtDate(o.next_date))} · ${esc(rel(o.next_date))}</a>`).join('')}
   ${deadlines(30).map((o) => `<a class="alert" href="#/orga">✂️ <b>${esc(o.title)}</b>${o.provider ? ` (${esc(o.provider)})` : ''} – kündigen bis ${esc(fmtDate(o.cancel_by))} · ${esc(rel(o.cancel_by))}</a>`).join('')}
 
   <div class="dash-grid">
@@ -114,4 +116,5 @@ export const actions = {
   'photo-view': photoActions['photo-view'],
   'rc-open': (el) => openRecipe(el.dataset.id),
   'ev-edit': calActions['ev-edit'],
+  'ev-ext': calActions['ev-ext'],
 };
