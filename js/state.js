@@ -3,7 +3,7 @@ import { db } from './db.js';
 import { esc } from './util.js';
 import { toast } from './ui.js';
 
-export const TABLES = ['profiles', 'todos', 'shopping_items', 'events', 'trackers', 'trips', 'diary_entries'];
+export const TABLES = ['profiles', 'todos', 'shopping_items', 'events', 'trackers', 'trips', 'diary_entries', 'diary_feelings', 'recipes', 'orga_items', 'photos', 'app_settings'];
 export const S = { user: null };
 TABLES.forEach((t) => (S[t] = []));
 
@@ -76,4 +76,30 @@ export async function del(t, id) {
 export async function delMany(t, ids) {
   S[t] = S[t].filter((x) => !ids.includes(x.id)); rerender();
   try { await db.removeMany(t, ids); } catch (e) { await fail(t, e); throw e; }
+}
+
+// ---------- Gemeinsame Einstellungen ----------
+export const getSetting = (id, fallback = {}) => S.app_settings.find((x) => x.id === id)?.value ?? fallback;
+export const setSetting = (id, value) => upsert('app_settings', { id, value, updated_at: new Date().toISOString() }, 'id');
+
+// ---------- Foto-Links (signiert, zwischengespeichert) ----------
+const urlCache = {}; const pending = new Set();
+export function photoUrl(path) {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  const c = urlCache[path];
+  if (c && c.exp > Date.now()) return c.url;
+  if (!pending.has(path)) {
+    pending.add(path);
+    queueMicrotask(async () => {
+      const batch = [...pending]; pending.clear();
+      if (!batch.length) return;
+      let urls = {};
+      try { urls = await db.photoUrls(batch); } catch (e) { console.error(e); }
+      // auch Fehlschläge merken (10 Min.), damit nicht endlos neu geladen wird
+      batch.forEach((p) => (urlCache[p] = urls[p] ? { url: urls[p], exp: Date.now() + 5 * 3600 * 1000 } : { url: null, exp: Date.now() + 600000 }));
+      rerender();
+    });
+  }
+  return null;
 }

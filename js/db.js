@@ -29,6 +29,18 @@ if (!isDemo) {
     async upsert(t, row, onConflict = 'id') { return ok(await sb.from(t).upsert(row, { onConflict }).select().single()); },
     async remove(t, id) { ok(await sb.from(t).delete().eq('id', id)); },
     async removeMany(t, ids) { if (ids.length) ok(await sb.from(t).delete().in('id', ids)); },
+    async uploadPhoto(blob, userId) {
+      const path = `${userId}/${uid()}.jpg`;
+      ok(await sb.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false }));
+      return path;
+    },
+    async photoUrls(paths) {
+      if (!paths.length) return {};
+      const data = ok(await sb.storage.from('photos').createSignedUrls(paths, 60 * 60 * 6));
+      const out = {}; (data || []).forEach((d) => { if (d.signedUrl) out[d.path] = d.signedUrl; });
+      return out;
+    },
+    async deletePhoto(path) { ok(await sb.storage.from('photos').remove([path])); },
     subscribe(cb) {
       sb.channel('batzi-live')
         .on('postgres_changes', { event: '*', schema: 'public' }, (p) => cb(p.table))
@@ -57,7 +69,10 @@ if (!isDemo) {
     async signOut() { store.set('batzi-demo-user', current().id === 'demo-a' ? 'demo-b' : 'demo-a'); },
     switchUser() { store.set('batzi-demo-user', current().id === 'demo-a' ? 'demo-b' : 'demo-a'); },
     async isMember() { return true; },
-    async list(t) { return read(t); },
+    async list(t) {
+      const rows = read(t);
+      return t === 'diary_feelings' ? rows.filter((r) => r.author_id === current().id || !r.is_private) : rows;
+    },
     async insert(t, row) {
       const rows = read(t);
       const r = { id: uid(), created_at: now(), ...(t === 'diary_entries' ? { author_id: current().id } : { created_by: current().id }), ...row };
@@ -77,6 +92,12 @@ if (!isDemo) {
       const r = { id: uid(), created_at: now(), ...full }; rows.push(r); write(t, rows); return r;
     },
     async remove(t, id) { write(t, read(t).filter((r) => r.id !== id)); },
+    async uploadPhoto(blob) {
+      const url = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      const path = 'demo/' + uid(); store.set('batzi-demo-photo-' + path, url); return path;
+    },
+    async photoUrls(paths) { const o = {}; paths.forEach((p) => (o[p] = p.startsWith('http') ? p : store.get('batzi-demo-photo-' + p))); return o; },
+    async deletePhoto(path) { try { localStorage.removeItem('batzi-demo-photo-' + path); } catch {} },
     async removeMany(t, ids) { write(t, read(t).filter((r) => !ids.includes(r.id))); },
     subscribe(cb) {
       window.addEventListener('storage', (e) => { if (e.key?.startsWith('batzi-demo-')) cb(e.key.replace('batzi-demo-', '')); });
@@ -125,6 +146,25 @@ if (!isDemo) {
       { id: uid(), author_id: A, entry_date: addDays(T, -1), message: 'Danke fürs Kochen gestern, war mega lecker!', mood: '😊' },
       { id: uid(), author_id: B, entry_date: addDays(T, -1), message: 'Heute war anstrengend, aber du hast mich zum Lachen gebracht 💛', mood: '😴' },
     ]);
+    write('photos', [
+      { id: uid(), path: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200', caption: 'Roadtrip 2025', on_dashboard: true },
+      { id: uid(), path: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200', caption: 'Ostsee', on_dashboard: true },
+      { id: uid(), path: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200', caption: 'Berge', on_dashboard: true },
+    ]);
+    write('orga_items', [
+      { id: uid(), category: 'Versicherungen', title: 'Haftpflicht', provider: 'HUK', amount: 6.5, interval: 'monthly', payer: 'both', active: true },
+      { id: uid(), category: 'Strom & Energie', title: 'Strom', provider: 'Stadtwerke', amount: 89, interval: 'monthly', payer: 'both', cancel_by: addDays(T, 20), active: true },
+      { id: uid(), category: 'Abos & Streaming', title: 'Netflix', provider: 'Netflix', amount: 13.99, interval: 'monthly', payer: A, active: true },
+      { id: uid(), category: 'Wohnen', title: 'Miete', provider: 'Vermieter', amount: 980, interval: 'monthly', payer: 'both', active: true },
+      { id: uid(), category: 'Mobilität', title: 'Kfz-Versicherung', provider: 'Allianz', amount: 420, interval: 'yearly', payer: B, active: true },
+    ]);
+    write('diary_feelings', [
+      { id: uid(), author_id: B, entry_date: T, score: 4, note: 'Gut geschlafen!', is_private: false },
+      { id: uid(), author_id: A, entry_date: addDays(T, -1), score: 3, note: '', is_private: true },
+      { id: uid(), author_id: B, entry_date: addDays(T, -1), score: 2, note: 'Stressiger Tag', is_private: false },
+      { id: uid(), author_id: A, entry_date: addDays(T, -2), score: 5, note: '', is_private: false },
+    ]);
+    write('app_settings', [{ id: 'pantry', value: { items: ['Nudeln', 'Eier', 'Zwiebeln', 'Tomaten (Dose)', 'Reis', 'Knoblauch'] } }]);
     store.set('batzi-demo-seeded', true);
   }
 }

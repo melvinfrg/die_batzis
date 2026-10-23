@@ -1,9 +1,65 @@
-import { S, upsert, del, me, partner, myProfile, avatar } from '../state.js';
-import { esc, todayStr, addDays, fmtDate, relDay, parseDate, toDateStr } from '../util.js';
+import { S, upsert, del, me, partner, myProfile, avatar, nameOf } from '../state.js';
+import { esc, todayStr, addDays, fmtDate, relDay, parseDate, toDateStr, store } from '../util.js';
 import { toast, burst, centerOf } from '../ui.js';
 
 const MOODS = ['😊', '🥰', '🥳', '😴', '🤒', '😤', '😢', '🤗', '😌', '🤯'];
-const V = { editing: false, reveal: false, n: 14 };
+const V = { editing: false, reveal: false, n: 14, fEdit: false };
+export const FEEL = { 1: ['😣', 'Mies'], 2: ['😕', 'Nicht so'], 3: ['😐', 'Okay'], 4: ['🙂', 'Gut'], 5: ['😄', 'Super'] };
+export const feelingOf = (author, date) => S.diary_feelings.find((f) => f.author_id === author && f.entry_date === date);
+
+function feelingChart() {
+  const T = todayStr(); const days = 30; const p = partner();
+  const W = 600, H = 120, pad = 14;
+  const x = (i) => pad + (i * (W - 2 * pad)) / (days - 1);
+  const y = (v) => H - pad - ((v - 1) * (H - 2 * pad)) / 4;
+  const series = [[me(), 'mine'], ...(p ? [[p.id, 'theirs']] : [])].map(([id, cls]) => {
+    const pts = [];
+    for (let i = 0; i < days; i++) { const f = feelingOf(id, addDays(T, i - days + 1)); if (f) pts.push([x(i), y(f.score), f]); }
+    return { cls, id, pts };
+  });
+  if (!series.some((s) => s.pts.length > 1)) return '';
+  const grid = [1, 2, 3, 4, 5].map((v) => `<line x1="${pad}" x2="${W - pad}" y1="${y(v)}" y2="${y(v)}" class="grid"/>`).join('');
+  const lines = series.map((s) => `<polyline class="ln ${s.cls}" points="${s.pts.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(' ')}"/>${s.pts.map(([a, b, f]) => `<circle class="pt ${s.cls}" cx="${a.toFixed(1)}" cy="${b.toFixed(1)}" r="4"><title>${esc(fmtDate(f.entry_date, 'short'))}: ${FEEL[f.score][1]}${f.is_private ? ' (privat)' : ''}</title></circle>`).join('')}`).join('');
+  return `<div class="feel-chart">
+    <div class="feel-legend"><span class="lg mine">${esc(nameOf(me()))}</span>${p ? `<span class="lg theirs">${esc(p.display_name)}</span>` : ''}<span class="muted small">letzte 30 Tage</span></div>
+    <div class="feel-axis"><span>😄</span><span>😐</span><span>😣</span></div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Stimmungsverlauf der letzten 30 Tage">${grid}${lines}</svg>
+  </div>`;
+}
+
+function feelingSection() {
+  const T = todayStr(), p = partner();
+  const mine = feelingOf(me(), T), theirs = p ? feelingOf(p.id, T) : null;
+  const editing = !mine || V.fEdit;
+  const defPrivate = store.get('batzi-feel-private', false);
+  const priv = mine ? mine.is_private : defPrivate;
+  return `<section class="card feel-card">
+    <div class="feel-cols">
+      <div>
+        <h3>🌡️ Wie geht’s dir heute?</h3>
+        ${editing ? `<form data-submit="feel-save" class="feel-form">
+          <div class="feel-scale">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="score" value="${v}" ${mine?.score === v ? 'checked' : ''} required><span><b>${FEEL[v][0]}</b><small>${FEEL[v][1]}</small></span></label>`).join('')}</div>
+          <textarea name="note" id="feel-note" data-keep rows="2" maxlength="1000" placeholder="Was beschäftigt dich? (optional)">${esc(mine?.note || '')}</textarea>
+          <div class="row-between wrap-gap">
+            <label class="switch"><input type="checkbox" name="share" ${priv ? '' : 'checked'}><span>${p ? esc(p.display_name) : 'Dein Schatz'} darf das sehen</span></label>
+            <div class="btn-row">${mine ? '<button type="button" class="btn ghost sm" data-action="feel-cancel">Abbrechen</button>' : ''}<button class="btn primary sm" type="submit">Speichern</button></div>
+          </div>
+        </form>` : `<div class="feel-show">
+          <span class="feel-big">${FEEL[mine.score][0]}</span>
+          <div><b>${FEEL[mine.score][1]}</b>${mine.note ? `<p>${esc(mine.note)}</p>` : ''}
+          <p class="muted small">${mine.is_private ? '🔒 Nur für dich' : `👀 ${p ? esc(p.display_name) : 'Dein Schatz'} kann das sehen`}</p></div>
+          <button class="icon-btn sm" data-action="feel-edit" aria-label="Bearbeiten">✎</button>
+        </div>`}
+      </div>
+      ${p ? `<div class="feel-partner">
+        <h3>${avatar(p.id, 'sm')} ${esc(p.display_name)} heute</h3>
+        ${theirs ? `<div class="feel-show"><span class="feel-big">${FEEL[theirs.score][0]}</span><div><b>${FEEL[theirs.score][1]}</b>${theirs.note ? `<p>${esc(theirs.note)}</p>` : ''}</div></div>`
+          : `<p class="muted">Noch nichts geteilt${'' }.</p>`}
+      </div>` : ''}
+    </div>
+    ${feelingChart()}
+  </section>`;
+}
 
 export const entryOf = (author, date) => S.diary_entries.find((e) => e.author_id === author && e.entry_date === date);
 export const myToday = () => entryOf(me(), todayStr());
@@ -66,6 +122,8 @@ export function render() {
     </section>
   </div>
 
+  ${feelingSection()}
+
   ${ly.length ? `<section class="card throwback"><h3>📸 Heute vor einem Jahr</h3><div class="day-bubbles">${ly.map((e) => bubble(e, e.author_id === me() ? 'right' : 'left')).join('')}</div></section>` : ''}
 
   <section class="archive">
@@ -94,6 +152,16 @@ export const actions = {
     if (first) { burst(...centerOf(btn), ['💌', '💛', '✨', '🥰']); toast('Nachricht verschickt 💌'); }
   },
   'diary-edit': () => { V.editing = true; },
+  'feel-save': async (form) => {
+    const score = Number(form.querySelector('[name=score]:checked')?.value);
+    if (!score) { toast('Wähl kurz ein Gesicht aus 🙂'); return; }
+    const is_private = !form.querySelector('[name=share]').checked;
+    store.set('batzi-feel-private', is_private);
+    await upsert('diary_feelings', { author_id: me(), entry_date: todayStr(), score, note: form.querySelector('[name=note]').value.trim() || null, is_private, updated_at: new Date().toISOString() }, 'author_id,entry_date');
+    V.fEdit = false; toast(is_private ? 'Gespeichert 🔒 nur für dich' : 'Gespeichert 💛');
+  },
+  'feel-edit': () => { V.fEdit = true; },
+  'feel-cancel': () => { V.fEdit = false; },
   'diary-cancel': () => { V.editing = false; },
   'diary-del': async () => { const m = myToday(); if (m && confirm('Heutige Nachricht löschen?')) { await del('diary_entries', m.id); V.editing = false; } },
   'diary-reveal': () => { V.reveal = true; },

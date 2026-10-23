@@ -5,7 +5,21 @@ import { openItems, catEmoji, actions as shopActions } from './shopping.js';
 import { upcoming, eventRow, actions as calActions } from './calendar.js';
 import { sortedTrackers, trackerCard } from './tracker.js';
 import { nextTrip, tripStatus, countdownText } from './trips.js';
-import { myToday, theirToday, streak, bubble } from './diary.js';
+import { myToday, theirToday, streak, bubble, feelingOf, FEEL } from './diary.js';
+import { photoCard, actions as photoActions } from './photos.js';
+import { dailySuggestions, mealToday, openRecipe } from './recipes.js';
+import { deadlines } from './orga.js';
+import { relDay as rel } from '../util.js';
+
+function cookCard() {
+  const meal = mealToday();
+  const sugg = dailySuggestions(3);
+  return `<section class="card dash-cook">
+    <div class="card-head"><h2>🍳 ${meal ? 'Heute gibt’s' : 'Was kochen wir?'}</h2><a class="more" href="#/rezepte">Rezepte ›</a></div>
+    ${meal ? `<button class="cook-main" data-action="rc-open" data-id="${esc(meal.id)}"><span class="rc-emoji">${esc(meal.emoji || '🍽️')}</span><span><b>${esc(meal.title)}</b><small>${meal.minutes ? `⏱️ ${meal.minutes} Min.` : ''}</small></span></button>`
+      : sugg.map((r) => `<button class="cook-row" data-action="rc-open" data-id="${esc(r.id)}"><span class="rc-emoji sm">${esc(r.emoji || '🍽️')}</span><span class="grow"><b>${esc(r.title)}</b></span><small class="muted">${r.minutes ? `${r.minutes} Min.` : ''}</small></button>`).join('')}
+  </section>`;
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -40,13 +54,19 @@ export function render() {
     <div class="hero-avatars">${mp ? avatar(mp.id, 'lg') : ''}${p ? avatar(p.id, 'lg') : ''}</div>
   </section>
 
+  ${deadlines(30).map((o) => `<a class="alert" href="#/orga">✂️ <b>${esc(o.title)}</b>${o.provider ? ` (${esc(o.provider)})` : ''} – kündigen bis ${esc(fmtDate(o.cancel_by))} · ${esc(rel(o.cancel_by))}</a>`).join('')}
+
   <div class="dash-grid">
+    ${photoCard()}
     <a class="card dash-diary ${!mine ? 'nudge' : ''}" href="#/tagebuch">
       <div class="card-head"><h2>💌 Tagebuch</h2>${st ? `<span class="badge">🔥 ${st}</span>` : ''}</div>
       ${theirs ? (mine ? bubble(theirs, 'left') : `<p><b>${esc(p.display_name)}</b> hat dir heute geschrieben! Schreib zurück, um es zu lesen ✨</p>`)
         : p ? `<p class="muted">${esc(p.display_name)} hat heute noch nicht geschrieben.</p>` : ''}
       <p class="dash-diary-status ${mine ? 'ok' : ''}">${mine ? '✓ Deine heutige Nachricht ist verschickt' : `✍️ Schreib ${p ? esc(p.display_name) : 'deinem Schatz'} heute noch was Liebes`}</p>
+      ${(() => { const f = p && feelingOf(p.id, T); return f ? `<p class="dash-feel">${FEEL[f.score][0]} ${esc(p.display_name)} fühlt sich heute <b>${FEEL[f.score][1].toLowerCase()}</b>${f.note ? ` – „${esc(f.note)}“` : ''}</p>` : ''; })()}
     </a>
+
+    ${cookCard()}
 
     <section class="card dash-todos">
       <div class="card-head"><h2>✅ ToDos</h2><a class="more" href="#/todos">${open.length} offen${overdue.length ? ` · <span class="bad">${overdue.length} überfällig</span>` : ''} ›</a></div>
@@ -90,5 +110,8 @@ export const actions = {
   'shop-add': shopActions['shop-add'],
   'shop-toggle': shopActions['shop-toggle'],
   'ev-new': calActions['ev-new'],
+  'photo-manage': photoActions['photo-manage'],
+  'photo-view': photoActions['photo-view'],
+  'rc-open': (el) => openRecipe(el.dataset.id),
   'ev-edit': calActions['ev-edit'],
 };

@@ -60,11 +60,14 @@ Optional: Unter **Authentication → Sign In / Providers → Email** kannst du �
 |---|---|
 | 🏡 **Dashboard** | Begrüßung, „Zusammen seit …“, heutige Tagebuch-Nachricht, fällige ToDos (direkt abhaken), Einkauf (direkt hinzufügen/abhaken), nächste Termine, Countdown zur nächsten Reise, gepinnte Tracker |
 | ✅ **ToDos** | Fälligkeit, Priorität, Wer (ich / du / beide), Kategorien, Unteraufgaben, Notizen, Wiederholung (täglich bis jährlich – beim Abhaken entsteht automatisch die nächste), Filter & Suche, Gruppierung nach Überfällig/Heute/Morgen/… · Schnell-Eingabe: `Müll rausbringen @morgen #Haushalt !` |
-| 🛒 **Einkauf** | Automatische Sortierung nach Supermarkt-Bereich, Menge & Notiz, mehrere Sachen mit Komma auf einmal, „Schnell nochmal“-Vorschläge, Abhaken → „Im Wagen“ |
+| 🛒 **Einkauf** | Automatische Sortierung nach Supermarkt-Bereich, Menge & Notiz, mehrere Sachen mit Komma auf einmal, „Schnell nochmal“-Vorschläge, Abhaken → „Im Wagen“, Laden pro Artikel (wird gemerkt und vorgeschlagen), Ansicht nach Laden, Angebote-Knopf (marktguru) |
 | 📅 **Kalender** | Monatsansicht, ganztägig/mit Uhrzeit, mehrtägig, Wiederholung (wöchentlich, monatlich, jährlich – z. B. Geburtstage mit Alter), Farben, Ort; Reisen und fällige ToDos erscheinen automatisch |
 | ⏳ **Tracker** | Tage seit …, Jahre/Monate/Tage, nächster Meilenstein mit Fortschritt, Jahrestags-Hinweis, „Neu starten“ mit Rekord-Historie, aufs Dashboard pinnen |
 | ✈️ **Reisen** | Bevorstehend / Vergangen / Wunschliste, Statistik (Reisen, Tage, Länder), je Reise: Notizen, Tagesplan, Links (Flug, Unterkunft, Tickets …), Packliste mit Standardliste, Kosten mit „Wer schuldet wem“, Budget, Sterne-Bewertung, Titelbild |
-| 💌 **Tagebuch** | Eine Nachricht pro Person und Tag mit Stimmung · die Nachricht des anderen wird erst aufgedeckt, wenn man selbst geschrieben hat 😉 · Streak, „Heute vor einem Jahr“, Archiv |
+| 📸 **Fotos** | Eigene Lieblingsfotos hochladen (werden verkleinert, privat gespeichert), Bildunterschrift, auswählen, welche aufs Dashboard kommen |
+| 🍳 **Rezepte** | 34 Alltagsrezepte + eigene, täglich wechselnde Vorschläge (einstellbar: vegetarisch, max. Zeit, Anzahl), „Was haben wir da?“ mit Vorrat, fehlende Zutaten per Knopf auf die Einkaufsliste, „Heute kochen“, Favoriten |
+| 🗂️ **Orga** | Versicherungen, Strom & Energie, Verträge, Abos, Wohnen, Mobilität … mit Betrag, Zahlweise, wer zahlt, Vertragsnr., Kündigungsfrist · Reiter **Kosten**: pro Monat/Jahr, nach Bereich, wer zahlt was, Fristen-Erinnerung aufs Dashboard |
+| 💌 **Tagebuch** | Eine Nachricht pro Person und Tag mit Stimmung · die Nachricht des anderen wird erst aufgedeckt, wenn man selbst geschrieben hat 😉 · „Wie geht’s dir heute?“ mit Stimmung + Notiz – wahlweise privat (wird dann in der Datenbank wirklich vor dem anderen verborgen) · Stimmungsverlauf · Streak, „Heute vor einem Jahr“, Archiv |
 
 ## Ordnerstruktur
 
@@ -75,7 +78,8 @@ js/config.js          Supabase-URL + öffentlicher Schlüssel
 js/db.js              Datenzugriff (Supabase oder Demo)
 js/app.js             Login, Navigation, Live-Updates
 js/views/*.js         Die einzelnen Seiten
-supabase/schema.sql   Komplettes Datenbank-Schema (zum Neuaufsetzen)
+supabase/schema.sql   Datenbank-Schema (Teil 1)
+supabase/migration-2.sql  Erweiterung: Fotos, Gefühle, Rezepte, Orga
 assets/               Logo & App-Icons
 ```
 

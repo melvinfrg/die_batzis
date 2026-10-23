@@ -9,16 +9,21 @@ import * as calendar from './views/calendar.js';
 import * as tracker from './views/tracker.js';
 import * as trips from './views/trips.js';
 import * as diary from './views/diary.js';
+import * as recipes from './views/recipes.js';
+import * as orga from './views/orga.js';
 
 const ROUTES = {
   dashboard: { label: 'Start', icon: '🏡', view: dashboard },
   todos: { label: 'ToDos', icon: '✅', view: todos },
   einkauf: { label: 'Einkauf', icon: '🛒', view: shopping },
+  rezepte: { label: 'Rezepte', icon: '🍳', view: recipes },
   kalender: { label: 'Kalender', icon: '📅', view: calendar },
   tracker: { label: 'Tracker', icon: '⏳', view: tracker },
   reisen: { label: 'Reisen', icon: '✈️', view: trips },
   tagebuch: { label: 'Tagebuch', icon: '💌', view: diary },
+  orga: { label: 'Orga', icon: '🗂️', view: orga },
 };
+const MOBILE = ['dashboard', 'todos', 'einkauf', 'tagebuch'];
 let cur = { name: 'dashboard', param: null };
 const app = document.getElementById('app');
 
@@ -176,7 +181,17 @@ function renderNav() {
   const links = Object.entries(ROUTES).map(([k, r]) => `<a href="#/${k}" data-route="${k}" class="${cur.name === k ? 'active' : ''}"><span class="ni">${r.icon}</span><span class="nl">${r.label}</span>${badge(k)}</a>`).join('');
   const nav = document.getElementById('nav'); if (!nav) return;
   nav.innerHTML = links;
-  document.getElementById('bottomnav').innerHTML = links;
+  const link = (k) => { const r = ROUTES[k]; return `<a href="#/${k}" data-route="${k}" class="${cur.name === k ? 'active' : ''}"><span class="ni">${r.icon}</span><span class="nl">${r.label}</span>${badge(k)}</a>`; };
+  const moreKeys = Object.keys(ROUTES).filter((k) => !MOBILE.includes(k));
+  const moreActive = moreKeys.includes(cur.name);
+  const moreBadge = moreKeys.some((k) => badge(k)) ? '<i class="nav-dot"></i>' : '';
+  document.getElementById('bottomnav').innerHTML = MOBILE.map(link).join('') +
+    `<button type="button" id="more-btn" class="${moreActive ? 'active' : ''}"><span class="ni">${moreActive ? ROUTES[cur.name].icon : '☰'}</span><span class="nl">${moreActive ? ROUTES[cur.name].label : 'Mehr'}</span>${moreBadge}</button>`;
+  document.getElementById('more-btn').onclick = () => {
+    const dlg = openModal({ title: 'Alle Bereiche', hideCancel: true,
+      body: `<div class="more-grid">${Object.keys(ROUTES).map((k) => `<a href="#/${k}" class="more-tile ${cur.name === k ? 'active' : ''}"><span>${ROUTES[k].icon}</span>${ROUTES[k].label}${badge(k)}</a>`).join('')}</div>` });
+    dlg.querySelectorAll('.more-tile').forEach((a) => a.addEventListener('click', () => dlg.close()));
+  };
   const mp = myProfile(), p = partner();
   const meHtml = `${mp ? avatar(mp.id) : ''}<span class="me-text"><b>${esc(mp?.display_name || '')}</b>${p ? `<small>& ${esc(p.display_name)} ${esc(p.emoji || '')}</small>` : '<small>Profil</small>'}</span>`;
   document.getElementById('me-btn').innerHTML = meHtml;
