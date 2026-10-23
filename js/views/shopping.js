@@ -1,6 +1,5 @@
-import { S, add, patch, del, delMany, nameOf, avatar, getSetting, setSetting, loadTable, rerender } from '../state.js';
-import { db } from '../db.js';
-import { esc, store, safeUrl, hostOf } from '../util.js';
+import { S, add, patch, del, delMany, nameOf, avatar, getSetting, setSetting } from '../state.js';
+import { esc, store } from '../util.js';
 import { openModal, toast } from '../ui.js';
 
 export const CATS = [
@@ -117,38 +116,12 @@ export function render() {
   `;
 }
 
-// ---------- KI-Angebotscheck ----------
-const AI = { running: false, error: null };
-const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'gerade eben' : m < 60 ? `vor ${m} Min.` : m < 1440 ? `vor ${Math.round(m / 60)} Std.` : `vor ${Math.round(m / 1440)} Tagen`; };
 function offersCard(open) {
-  const last = getSetting('offers_last', {});
-  const plz = getSetting('offers_prefs', {}).plz || '';
-  const res = last.at ? last : null;
-  const names = new Set(open.map((i) => i.name.toLowerCase()));
-  const applicable = res ? (res.items || []).filter((it) => it.best && names.has(String(it.name).toLowerCase())) : [];
-  const running = AI.running || (last.started_at && !last.at && Date.now() - Date.parse(last.started_at) < 180000);
+  if (!open.length) return '';
   return `<section class="card offers-card">
-    <div class="row-between wrap-gap"><h3>🤖 KI-Angebotscheck</h3>${res ? `<span class="muted small">Stand: ${esc(ago(res.at))}${res.plz ? ` · PLZ ${esc(res.plz)}` : ''}</span>` : ''}</div>
-    <p class="muted small">Die KI durchsucht die aktuellen Prospekte von ALDI, LIDL, PENNY, NETTO, REWE, EDEKA und Kaufland und sagt euch, wo es eure Artikel gerade am günstigsten gibt.</p>
-    <form class="ai-row" data-submit="ai-run">
-      <input id="ai-plz" name="plz" inputmode="numeric" maxlength="5" placeholder="Eure PLZ" value="${esc(plz)}" aria-label="Postleitzahl">
-      <button class="btn primary" type="submit" ${running || !open.length ? 'disabled' : ''}>${running ? '<span class="spin">⏳</span> KI sucht … (ca. 1 Min.)' : `🤖 Beste Angebote finden${open.length ? ` (${Math.min(open.length, 15)} Artikel)` : ''}`}</button>
-    </form>
-    ${AI.error ? `<p class="notice bad-notice">⚠️ ${esc(AI.error)}</p>` : ''}
-    ${res ? `
-      ${res.recommendation?.store ? `<div class="ai-reco">🏆 <b>Empfehlung: ${esc(res.recommendation.store)}</b>${res.recommendation.reason ? ` – ${esc(res.recommendation.reason)}` : ''}</div>` : ''}
-      <ul class="ai-list">${(res.items || []).map((it) => `<li>
-        <span class="ai-name">${esc(it.name)}</span>
-        ${it.best ? `<span class="ai-best"><span class="store-pill">${esc(it.best.store)}</span> <b>${esc(it.best.price || '')}</b> <small class="muted">${esc([it.best.product, it.best.unit, it.best.valid].filter(Boolean).join(' · '))}</small>
-          ${safeUrl(it.best.url) ? `<a href="${esc(safeUrl(it.best.url))}" target="_blank" rel="noopener noreferrer" class="small">Quelle</a>` : ''}</span>
-          ${(it.others || []).length ? `<small class="ai-others">sonst: ${(it.others || []).slice(0, 3).map((o) => `${esc(o.store)} ${esc(o.price || '')}`).join(' · ')}</small>` : ''}`
-        : '<span class="muted small">kein aktuelles Angebot gefunden</span>'}
-      </li>`).join('')}</ul>
-      ${applicable.length ? `<div class="btn-row"><button class="btn" data-action="ai-apply">🏪 Günstigste Läden übernehmen (${applicable.length})</button></div>` : ''}
-      ${res.note ? `<p class="hint">${esc(res.note)}</p>` : ''}
-      ${(res.sources || []).length ? `<details class="help"><summary>Quellen</summary><ul class="src-list">${res.sources.map((x) => safeUrl(x.url) ? `<li><a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener noreferrer">${esc(x.title || hostOf(x.url))}</a></li>` : '').join('')}</ul></details>` : ''}
-      <p class="hint">Die KI kann sich irren – Preise im Zweifel im Prospekt prüfen.</p>` : ''}
-    ${open.length ? `<details class="help"><summary>🏷️ Selbst in Prospekten nachschauen</summary><div class="shop-chips">${open.slice(0, 30).map((i) => `<a class="chip" href="${esc(offerUrl(i.name))}" target="_blank" rel="noopener noreferrer">🏷️ ${esc(i.name)}</a>`).join('')}</div></details>` : ''}
+    <h3>🏷️ Angebote checken</h3>
+    <p class="muted small">Tippe auf einen Artikel, um die aktuellen Prospekt-Angebote (marktguru) zu sehen.</p>
+    <div class="shop-chips">${open.slice(0, 30).map((i) => `<a class="chip" href="${esc(offerUrl(i.name))}" target="_blank" rel="noopener noreferrer">🏷️ ${esc(i.name)}</a>`).join('')}</div>
   </section>`;
 }
 
@@ -182,26 +155,6 @@ export async function addShopping(names, quantity = '', category = '', shop = ''
 }
 
 export const actions = {
-  'ai-run': async (form) => {
-    const plz = form.querySelector('[name=plz]').value.replace(/\D/g, '').slice(0, 5);
-    if (plz !== (getSetting('offers_prefs', {}).plz || '')) setSetting('offers_prefs', { plz }).catch(() => {});
-    const items = openItems().map((i) => i.name).slice(0, 15);
-    if (!items.length) return;
-    AI.running = true; AI.error = null; rerender();
-    try { await db.fetchOffers(items, plz); await loadTable('app_settings'); toast('Angebote gefunden 🤖'); }
-    catch (e) { AI.error = e.message; await loadTable('app_settings').catch(() => {}); }
-    finally { AI.running = false; rerender(); }
-  },
-  'ai-apply': async () => {
-    const res = getSetting('offers_last', {});
-    let n = 0;
-    for (const it of res.items || []) {
-      if (!it.best) continue;
-      const item = openItems().find((i) => i.name.toLowerCase() === String(it.name).toLowerCase());
-      if (item && item.store !== it.best.store) { await patch('shopping_items', item.id, { store: it.best.store, note: item.note || [it.best.price, it.best.valid].filter(Boolean).join(' · ') || null }); n++; }
-    }
-    toast(n ? `${n} Artikel den günstigsten Läden zugeordnet 🏪` : 'Schon alles zugeordnet');
-  },
   'shop-add': async (form) => {
     const n = form.querySelector('[name=name]'), q = form.querySelector('[name=quantity]'), c = form.querySelector('[name=category]'), st = form.querySelector('[name=store]');
     const v = n.value; if (!v.trim()) return n.focus();
