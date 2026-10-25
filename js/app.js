@@ -74,7 +74,7 @@ function renderAuth(mode = 'login', msg = '') {
   app.innerHTML = `
   <div class="auth">
     <form class="card auth-card" id="auth-form" autocomplete="on">
-      <img src="assets/icon.svg" alt="" width="96" height="96" class="auth-logo">
+      <img src="assets/icon.svg?v=2" alt="" width="96" height="96" class="auth-logo">
       <h1>Die Batzi's</h1>
       <p class="sub">${mode === 'login' ? 'Schön, dass du da bist! Melde dich an.' : mode === 'signup' ? 'Leg deinen Account an.' : 'Wir schicken dir einen Link zum Zurücksetzen.'}</p>
       ${msg ? `<p class="notice">${msg}</p>` : ''}
@@ -107,7 +107,7 @@ function renderAuth(mode = 'login', msg = '') {
 
 function passwordReset() {
   app.innerHTML = `<div class="auth"><form class="card auth-card" id="pw-form">
-    <img src="assets/icon.svg" alt="" width="80" height="80" class="auth-logo"><h1>Neues Passwort</h1>
+    <img src="assets/icon.svg?v=2" alt="" width="80" height="80" class="auth-logo"><h1>Neues Passwort</h1>
     <label class="field"><span>Passwort</span><input type="password" name="password" required minlength="6" autocomplete="new-password" autofocus></label>
     <button class="btn primary block">Speichern</button></form></div>`;
   document.getElementById('pw-form').onsubmit = async (e) => {
@@ -119,7 +119,7 @@ function passwordReset() {
 
 function renderNotMember(email) {
   app.innerHTML = `<div class="auth"><div class="card auth-card">
-    <img src="assets/icon.svg" alt="" width="80" height="80" class="auth-logo">
+    <img src="assets/icon.svg?v=2" alt="" width="80" height="80" class="auth-logo">
     <h1>Fast drin! 🔐</h1>
     <p>Du bist als <b>${esc(email)}</b> angemeldet, aber dieser Account ist noch nicht für die Batzi's freigeschaltet.</p>
     <p class="muted">Freischalten: In Supabase → SQL Editor:<br><code>insert into members (email) values ('${esc(email)}');</code></p>
@@ -159,12 +159,12 @@ function renderShell() {
   ${isDemo ? '<div class="demo-banner">🧪 Demo-Modus – Daten liegen nur in diesem Browser. <button class="link" id="demo-switch">Als andere Person ansehen</button></div>' : ''}
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="#/dashboard"><img src="assets/icon.svg" alt="" width="44" height="44"><span>Die Batzi's</span></a>
+      <a class="brand" href="#/dashboard"><img src="assets/icon.svg?v=2" alt="" width="44" height="44"><span>Die Batzi's</span></a>
       <nav class="nav" id="nav"></nav>
       <button class="me-btn" id="me-btn"></button>
     </aside>
     <header class="topbar">
-      <a class="brand" href="#/dashboard"><img src="assets/icon.svg" alt="" width="36" height="36"><span>Die Batzi's</span></a>
+      <a class="brand" href="#/dashboard"><img src="assets/icon.svg?v=2" alt="" width="36" height="36"><span>Die Batzi's</span></a>
       <button class="me-btn compact" id="me-btn-m"></button>
     </header>
     <main id="view" tabindex="-1"></main>
