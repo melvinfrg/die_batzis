@@ -2,14 +2,28 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Die Batzi's sind umgezogen</title>
-  <meta http-equiv="refresh" content="0; url=https://amelie-mhh.vercel.app/">
-  <link rel="canonical" href="https://amelie-mhh.vercel.app/">
-  <script>location.replace('https://amelie-mhh.vercel.app/');</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Die Batzi's</title>
+  <meta name="description" content="Unser gemeinsamer Alltag – ToDos, Einkauf, Termine, Reisen & mehr.">
+  <meta name="theme-color" content="#fff6ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Batzi's">
+  <link rel="icon" href="assets/favicon.svg?v=3" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png?v=3" type="image/png" sizes="32x32">
+  <link rel="alternate icon" href="favicon.ico?v=3">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=2">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
-<body style="font-family: system-ui, sans-serif; text-align: center; padding: 48px 16px;">
-  <p>Die Batzi's sind umgezogen 🐻🐰</p>
-  <p><a href="https://amelie-mhh.vercel.app/">Hier geht's zur neuen Seite</a></p>
+<body>
+  <div id="app">
+    <div class="splash"><img src="assets/icon.svg?v=2" alt="" width="84" height="84"><p>Die Batzi's laden …</p></div>
+  </div>
+  <dialog id="modal"></dialog>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
